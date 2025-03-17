@@ -2,10 +2,10 @@ package link_shortener;
 
 import org.springframework.stereotype.Service;
 
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.List;
 import java.util.Optional;
-import java.util.Arrays;
-import java.util.Base64;
 
 /*
     Purpose: The service layer holds the business logic. It doesn’t deal with HTTP requests directly,
@@ -18,6 +18,7 @@ import java.util.Base64;
 
 @Service
 public class LinkService {
+    private static final int MAX_LENGTH = 7;
     private final LinkRepository linkRepository;
 
     public LinkService(LinkRepository linkRepository) {
@@ -33,26 +34,52 @@ public class LinkService {
     }
 
     public Link create(Link link) {
-        Optional<Link> existingLink = linkRepository.findByLongUrl(link.getLongUrl());
-        if (existingLink.isEmpty()) {
-            link.setShortUrl(encodeUrl(link.getLongUrl()));
+        Optional<Link> linkOptional = linkRepository.findByLongUrl(link.getLongUrl());
+        if (linkOptional.isEmpty()) {
+            link.setShortUrl(generateShortUrl(link.getLongUrl()));
             return linkRepository.save(link);
         } else {
-            return existingLink.get();
+            return linkOptional.get();
         }
     }
 
-    private String encodeUrl(String longUrl) {
-        return Base64.getUrlEncoder().encodeToString(longUrl.getBytes());
+    private String generateShortUrl(String longUrl) {
+        String shortUrl;
+        do {
+            shortUrl = hashToShortUrl(longUrl);
+        } while (linkRepository.findByShortUrl(shortUrl).isPresent());
+        return shortUrl;
     }
 
-    public Optional<Link> findShortUrl(String shortUrl) {
-        return linkRepository.findByShortUrl(shortUrl);
+    private String hashToShortUrl(String longUrl) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hashBytes = digest.digest(longUrl.getBytes());
+
+            StringBuilder hexString = new StringBuilder();
+            for (int i = 0; i < MAX_LENGTH ; i++) {
+                hexString.append(String.format("%02x", hashBytes[i]));
+            }
+
+            return hexString.substring(0, MAX_LENGTH);
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("Error generating hash for short URL", e);
+        }
     }
 
-    public Link count(Link link) {
+    public Optional<Link> getRedirectUrl(String shortUrl) {
+        Optional<Link> linkOptional = linkRepository.findByShortUrl(shortUrl);
+        if (linkOptional.isPresent()) {
+            Link link = linkOptional.get();
+            incrementVisits(link);
+            return Optional.of(link);
+        }
+        return linkOptional;
+    }
+
+    private void incrementVisits(Link link) {
         link.setVisits(link.getVisits() + 1);
-        return linkRepository.save(link);
+        linkRepository.save(link);
     }
 
     public boolean remove(Long id) {
