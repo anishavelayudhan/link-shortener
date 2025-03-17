@@ -6,6 +6,8 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.List;
 import java.util.Optional;
+import java.net.URI;
+import java.net.URISyntaxException;
 
 /*
     Purpose: The service layer holds the business logic. It doesn’t deal with HTTP requests directly,
@@ -34,6 +36,12 @@ public class LinkService {
     }
 
     public Link create(Link link) {
+        try {
+            new URI(link.getLongUrl());
+        } catch (URISyntaxException e) {
+            throw new IllegalArgumentException("Invalid URL format");
+        }
+        
         Optional<Link> linkOptional = linkRepository.findByLongUrl(link.getLongUrl());
         if (linkOptional.isEmpty()) {
             link.setShortUrl(generateShortUrl(link.getLongUrl()));
