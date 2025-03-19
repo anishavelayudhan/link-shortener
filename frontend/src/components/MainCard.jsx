@@ -30,7 +30,7 @@ const MainCard = () => {
             copyToClipboard(baseUrl + shortUrl);
         } catch (err) {
             toast("Uh oh! Something went wrong.", {
-                description: "There was a problem with your request.",
+                description: "Try again with a valid URL",
             })
         } finally {
             setLoading(false);
@@ -84,7 +84,7 @@ const MainCard = () => {
                         <div className="flex flex-row w-full gap-1">
                             <Input
                                 type="text"
-                                value={shortenedUrl ? `${baseUrl}/${shortenedUrl}` : ''}
+                                value={shortenedUrl ? `${baseUrl}${shortenedUrl}` : ''}
                                 readOnly
                                 className="text-muted-foreground border-muted-foreground-dark"
                             ></Input>
