@@ -1,12 +1,13 @@
 "use client"
 
-import React, { useState } from "react";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Button } from "@/components/ui/button"
-import { Separator } from "@/components/ui/separator"
-import { Loader2 } from "lucide-react";
+import React, {useState} from "react";
+import {Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle} from "@/components/ui/card"
+import {toast} from "sonner"
+import {Input} from "@/components/ui/input"
+import {Label} from "@/components/ui/label"
+import {Button} from "@/components/ui/button"
+import {Separator} from "@/components/ui/separator"
+import {Loader2, Copy} from "lucide-react";
 import axios from "axios";
 
 
@@ -14,7 +15,8 @@ const MainCard = () => {
     const [linkData, setLinkData] = useState({longUrl: ""})
     const [shortenedUrl, setShortenedUrl] = useState("")
     const [loading, setLoading] = useState(false);
-    const baseUrl = 'http://localhost:8080'
+    const [showUrl, setShowUrl] = useState(false);
+    const baseUrl = 'http://localhost:8080/'
     const apiUrl = 'http://localhost:8080/url/'
 
     const handleSubmit = async (e) => {
@@ -23,17 +25,35 @@ const MainCard = () => {
 
         try {
             const response = await axios.post(apiUrl, linkData);
-            setShortenedUrl(response.data.shortUrl);
+            const shortUrl = response.data.shortUrl;
+            setShortenedUrl(shortUrl);
+            copyToClipboard(baseUrl + shortUrl);
         } catch (err) {
-            console.log("Error shortening link:", err);
+            toast("Uh oh! Something went wrong.", {
+                description: "There was a problem with your request.",
+            })
         } finally {
             setLoading(false);
+            setShowUrl(true);
         }
     };
 
     const handleChange = (e) => {
         setLinkData({longUrl: e.target.value});
     }
+
+    const copyToClipboard = (shortenedLink) => {
+        navigator.clipboard.writeText(shortenedLink).then(() => {
+            toast("Copied to clipboard!", {
+                description: shortenedLink
+            })
+        }).catch((err) => {
+            toast("Uh oh! Something went wrong.", {
+                description: "There was a problem copying the clipboard.",
+            })
+            console.log(err);
+        });
+    };
 
     return (
         <div>
@@ -46,30 +66,34 @@ const MainCard = () => {
                     <form onSubmit={handleSubmit}>
                         <div className="flex flex-col space-y-1.5">
                             <Label htmlFor="link">Paste your link</Label>
-                            <Input id="link" placeholder="Link" onChange={handleChange} />
+                            <Input id="link" placeholder="Link" onChange={handleChange}/>
                             <Button className="w-full" type="submit" disabled={loading}>
                                 {loading ?
-                                    ( <>
-                                        <Loader2 className="animate-spin" />
+                                    (<>
+                                        <Loader2 className="animate-spin"/>
                                         Please wait
-                                    </> )
-                                    : ('Shorten' )}
+                                    </>)
+                                    : ('Shorten')}
                             </Button>
                         </div>
                     </form>
                 </CardContent>
-                <CardFooter  className="flex flex-col justify-between gap-6">
-                    <Separator className="w-1/3" />
-                    <div className="flex flex-row w-full">
-                        <Input
-                            type="text"
-                            value={shortenedUrl ? `${baseUrl}/${shortenedUrl}` : ''}
-                            readOnly
-                            disabled
-                        />
-                        <Button variant="secondary"/>
-                    </div>
-                </CardFooter>
+                {showUrl &&
+                    <CardFooter className="flex flex-col justify-between gap-6">
+                        <Separator className="w-1/3"/>
+                        <div className="flex flex-row w-full gap-1">
+                            <Input
+                                type="text"
+                                value={shortenedUrl ? `${baseUrl}/${shortenedUrl}` : ''}
+                                readOnly
+                                className="text-muted-foreground border-muted-foreground-dark"
+                            ></Input>
+                            <Button variant="secondary" size="icon" onClick={() => copyToClipboard(baseUrl + shortenedUrl)}>
+                                <Copy />
+                            </Button>
+                        </div>
+                    </CardFooter>
+                }
             </Card>
         </div>
     );
