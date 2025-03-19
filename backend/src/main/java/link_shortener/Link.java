@@ -13,7 +13,9 @@ public class Link {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     Long id;
 
+    @Lob
     String longUrl;
+
     String shortUrl;
     Integer visits = 0;
 }

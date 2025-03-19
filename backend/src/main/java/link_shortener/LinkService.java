@@ -2,6 +2,8 @@ package link_shortener;
 
 import org.springframework.stereotype.Service;
 
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.List;
@@ -36,18 +38,35 @@ public class LinkService {
     }
 
     public Link create(Link link) {
+        URI uri;
         try {
-            new URI(link.getLongUrl());
+            uri = new URI(link.getLongUrl());
         } catch (URISyntaxException e) {
             throw new IllegalArgumentException("Invalid URL format");
         }
-        
-        Optional<Link> linkOptional = linkRepository.findByLongUrl(link.getLongUrl());
-        if (linkOptional.isEmpty()) {
-            link.setShortUrl(generateShortUrl(link.getLongUrl()));
-            return linkRepository.save(link);
+
+        if (isUrlAccessible(uri)) {
+            Optional<Link> linkOptional = linkRepository.findByLongUrl(link.getLongUrl());
+            if (linkOptional.isEmpty()) {
+                link.setShortUrl(generateShortUrl(link.getLongUrl()));
+                return linkRepository.save(link);
+            } else {
+                return linkOptional.get();
+            }
         } else {
-            return linkOptional.get();
+            throw new IllegalArgumentException("The URL is not accessible");
+        }
+    }
+
+    public boolean isUrlAccessible(URI uri) {
+        try {
+            URL url = uri.toURL();
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestMethod("HEAD");
+            int responseCode = connection.getResponseCode();
+            return responseCode >= 200 && responseCode < 300;
+        } catch (Exception e) {
+            return false;
         }
     }
 
