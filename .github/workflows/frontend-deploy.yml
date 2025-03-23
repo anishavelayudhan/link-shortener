@@ -1,0 +1,35 @@
+name: Deploy Frontend to Vercel
+
+on:
+  push:
+    paths:
+      - 'frontend/**' 
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '23.x' 
+
+      - name: Install dependencies
+        run: |
+          cd frontend
+          npm install  
+
+      - name: Build the frontend
+        run: |
+          cd frontend
+          npm run build 
+
+      - name: Deploy to Vercel
+        run: |
+          curl -fsSL https://vercel.com/download -o vercel
+          chmod +x vercel
+          ./vercel --token ${{ secrets.VERCEL_TOKEN }} --prod 
