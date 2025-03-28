@@ -2,10 +2,14 @@ package link_shortener;
 
 import org.springframework.stereotype.Service;
 
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.List;
 import java.util.Optional;
-import java.util.Arrays;
-import java.util.Base64;
+import java.net.URI;
+import java.net.URISyntaxException;
 
 /*
     Purpose: The service layer holds the business logic. It doesn’t deal with HTTP requests directly,
@@ -18,6 +22,7 @@ import java.util.Base64;
 
 @Service
 public class LinkService {
+    private static final int MAX_LENGTH = 7;
     private final LinkRepository linkRepository;
 
     public LinkService(LinkRepository linkRepository) {
@@ -33,26 +38,75 @@ public class LinkService {
     }
 
     public Link create(Link link) {
-        Optional<Link> existingLink = linkRepository.findByLongUrl(link.getLongUrl());
-        if (existingLink.isEmpty()) {
-            link.setShortUrl(encodeUrl(link.getLongUrl()));
-            return linkRepository.save(link);
+        URI uri;
+        try {
+            uri = new URI(link.getLongUrl());
+        } catch (URISyntaxException e) {
+            throw new IllegalArgumentException("Invalid URL format");
+        }
+
+        if (isUrlAccessible(uri)) {
+            Optional<Link> linkOptional = linkRepository.findByLongUrl(link.getLongUrl());
+            if (linkOptional.isEmpty()) {
+                link.setShortUrl(generateShortUrl(link.getLongUrl()));
+                return linkRepository.save(link);
+            } else {
+                return linkOptional.get();
+            }
         } else {
-            return existingLink.get();
+            throw new IllegalArgumentException("The URL is not accessible");
         }
     }
 
-    private String encodeUrl(String longUrl) {
-        return Base64.getUrlEncoder().encodeToString(longUrl.getBytes());
+    public boolean isUrlAccessible(URI uri) {
+        try {
+            URL url = uri.toURL();
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestMethod("HEAD");
+            int responseCode = connection.getResponseCode();
+            return responseCode >= 200 && responseCode < 300;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
-    public Optional<Link> findShortUrl(String shortUrl) {
-        return linkRepository.findByShortUrl(shortUrl);
+    private String generateShortUrl(String longUrl) {
+        String shortUrl;
+        do {
+            shortUrl = hashToShortUrl(longUrl);
+        } while (linkRepository.findByShortUrl(shortUrl).isPresent());
+        return shortUrl;
     }
 
-    public Link count(Link link) {
+    private String hashToShortUrl(String longUrl) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hashBytes = digest.digest(longUrl.getBytes());
+
+            StringBuilder hexString = new StringBuilder();
+            for (int i = 0; i < MAX_LENGTH ; i++) {
+                hexString.append(String.format("%02x", hashBytes[i]));
+            }
+
+            return hexString.substring(0, MAX_LENGTH);
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("Error generating hash for short URL", e);
+        }
+    }
+
+    public Optional<Link> getRedirectUrl(String shortUrl) {
+        Optional<Link> linkOptional = linkRepository.findByShortUrl(shortUrl);
+        if (linkOptional.isPresent()) {
+            Link link = linkOptional.get();
+            incrementVisits(link);
+            return Optional.of(link);
+        }
+        return linkOptional;
+    }
+
+    private void incrementVisits(Link link) {
         link.setVisits(link.getVisits() + 1);
-        return linkRepository.save(link);
+        linkRepository.save(link);
     }
 
     public boolean remove(Long id) {
